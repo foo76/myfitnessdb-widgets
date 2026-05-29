@@ -1,269 +1,287 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyFitnessDB – Wellness Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MyFitnessDB – Wellness</title>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --font-body: 'Satoshi', 'Inter', sans-serif;
-    --text-xs:   clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
-    --text-sm:   clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
-    --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
-    --text-xl:   clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
-    --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
-    --space-6: 1.5rem; --space-8: 2rem;
-    --radius-md: 0.5rem; --radius-lg: 0.75rem; --radius-xl: 1rem;
-    --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
-    --c-bg-top:#0A0E1A; --c-bg-mid:#0D1525; --c-bg-bot:#0F1C30;
-    --c-surface:#131d30; --c-divider:#1E2A40; --c-label:#6B7A99;
-    --c-label-dim:#3A4A66; --c-hrv:#00D4C8; --c-rhr:#FF5A6E;
+    --c-bg:#080C18; --c-surface:#0F1525; --c-card:#131D30;
+    --c-divider:#1E2A40; --c-label:#6B7A99; --c-dim:#3A4A66;
+    --c-text:#D0DCEF; --c-hrv:#00D4C8; --c-rhr:#FF5A6E;
     --c-sleep:#7B9EFF; --c-good:#00E5A0; --c-bad:#FF5A6E;
-    --c-gold:#F5C842; --c-grid:#1A2335; --c-text:#C8D4EC;
+    --c-gold:#F5C842; --c-grid:#1A2335;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bot:env(safe-area-inset-bottom,0px);
   }
-  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-  html { -webkit-font-smoothing:antialiased; }
-  body {
-    min-height:100dvh; font-family:var(--font-body); font-size:var(--text-base);
-    background:var(--c-bg-top); color:var(--c-text);
-    display:flex; align-items:center; justify-content:center;
-    padding:var(--space-8) var(--space-4);
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  html{-webkit-font-smoothing:antialiased;}
+  body{
+    font-family:'Satoshi','Inter',system-ui,sans-serif;
+    background:var(--c-bg); color:var(--c-text);
+    min-height:100dvh; display:flex; flex-direction:column;
+    padding-top:calc(var(--safe-top) + 16px);
+    padding-bottom:calc(var(--safe-bot) + 16px);
+    padding-left:16px; padding-right:16px; gap:12px; overflow-x:hidden;
   }
-  .widget {
-    width:min(420px,100%);
-    background:linear-gradient(135deg,var(--c-bg-top),var(--c-bg-mid),var(--c-bg-bot));
-    border:1px solid var(--c-divider); border-radius:var(--radius-xl);
-    padding:var(--space-4) var(--space-4) var(--space-3);
-    box-shadow:0 8px 40px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);
-    position:relative; overflow:hidden;
+  header{display:flex;align-items:center;justify-content:space-between;}
+  .brand{font-size:.65rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--c-dim);}
+  .date-pill{font-size:.7rem;font-weight:500;color:var(--c-label);background:var(--c-surface);border:1px solid var(--c-divider);border-radius:20px;padding:3px 10px;letter-spacing:.05em;}
+  .sync-row{font-size:.65rem;color:var(--c-gold);text-align:right;min-height:1em;letter-spacing:.02em;}
+  .metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .metric-card{
+    background:var(--c-card);border:1px solid var(--c-divider);border-radius:14px;
+    padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;
+    position:relative;overflow:hidden;
   }
-  .widget::before {
-    content:''; position:absolute; top:-60px; right:-60px;
-    width:200px; height:200px;
-    background:radial-gradient(circle,rgba(0,212,200,.07) 0%,transparent 70%);
-    pointer-events:none;
-  }
-  .title-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-3); }
-  .title-row .brand { font-size:var(--text-xs); font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--c-label-dim); }
-  .title-row .date-label { font-size:var(--text-xs); color:var(--c-label-dim); letter-spacing:.05em; text-transform:uppercase; }
-  .metrics-row { display:flex; align-items:stretch; justify-content:space-between; margin-bottom:var(--space-3); }
-  .metric-divider { width:1px; background:var(--c-divider); align-self:stretch; margin:0 var(--space-2); flex-shrink:0; }
-  .metric-block { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
-  .metric-icon-row { display:flex; align-items:center; gap:4px; font-size:var(--text-xs); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
-  .metric-arrow { font-size:var(--text-xs); font-weight:700; line-height:1; transition:color var(--transition-interactive); }
-  .metric-arrow.good { color:var(--c-good); }
-  .metric-arrow.bad  { color:var(--c-bad);  }
-  .metric-value-row { display:flex; align-items:baseline; gap:3px; }
-  .metric-value { font-size:var(--text-xl); font-weight:700; line-height:1; font-variant-numeric:tabular-nums lining-nums; transition:color var(--transition-interactive); }
-  .metric-unit { font-size:var(--text-xs); color:var(--c-label); align-self:flex-end; padding-bottom:2px; }
-  .chart-wrap { width:100%; position:relative; }
-  #chart svg { display:block; width:100%; overflow:visible; }
-  .footer-row { display:flex; align-items:center; justify-content:space-between; margin-top:var(--space-2); flex-wrap:wrap; gap:var(--space-2); }
-  .legend { display:flex; align-items:center; gap:var(--space-3); }
-  .legend-item { display:flex; align-items:center; gap:4px; font-size:var(--text-xs); color:var(--c-label-dim); }
-  .legend-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-  .sync-label { font-size:var(--text-xs); color:var(--c-gold); }
-  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-  .skeleton {
+  .metric-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:14px 14px 0 0;}
+  .metric-card.hrv::after{background:var(--c-hrv);}
+  .metric-card.rhr::after{background:var(--c-rhr);}
+  .metric-card.sleep::after{background:var(--c-sleep);}
+  .metric-label{font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--c-label);}
+  .metric-value-wrap{display:flex;align-items:baseline;gap:2px;line-height:1;}
+  .metric-value{font-size:clamp(1.6rem,7vw,2rem);font-weight:900;font-variant-numeric:tabular-nums;transition:color 300ms ease;}
+  .metric-unit{font-size:.6rem;color:var(--c-label);padding-bottom:3px;}
+  .metric-arrow{font-size:.75rem;font-weight:700;line-height:1;}
+  .metric-arrow.good{color:var(--c-good);}
+  .metric-arrow.bad{color:var(--c-bad);}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  .skel{
     background:linear-gradient(90deg,var(--c-surface) 25%,var(--c-divider) 50%,var(--c-surface) 75%);
-    background-size:200% 100%; animation:shimmer 1.6s ease-in-out infinite; border-radius:var(--radius-md);
+    background-size:200% 100%;animation:shimmer 1.5s ease-in-out infinite;border-radius:6px;
+    color:transparent!important;user-select:none;
   }
-  .skeleton-value { width:60px; height:36px; display:inline-block; }
-  .skeleton-chart { width:100%; height:82px; border-radius:var(--radius-md); }
-  .error-state { display:flex; flex-direction:column; align-items:center; gap:var(--space-3); padding:var(--space-8); text-align:center; }
-  .error-state .icon { font-size:2rem; }
-  .error-state p { font-size:var(--text-sm); color:var(--c-rhr); max-width:28ch; }
+  .skel-val{min-width:48px;min-height:32px;border-radius:6px;}
+  .range-wrap{display:flex;background:var(--c-surface);border:1px solid var(--c-divider);border-radius:12px;padding:3px;gap:2px;}
+  .range-btn{
+    flex:1;padding:7px 0;font-size:.75rem;font-weight:700;font-family:inherit;
+    border:none;border-radius:9px;background:transparent;color:var(--c-label);
+    cursor:pointer;transition:background 200ms ease,color 200ms ease;letter-spacing:.05em;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .range-btn:active{transform:scale(.96);}
+  .range-btn.active{background:var(--c-card);color:var(--c-hrv);box-shadow:0 2px 8px rgba(0,0,0,.4);}
+  .chart-panel{
+    background:var(--c-card);border:1px solid var(--c-divider);border-radius:16px;
+    padding:14px 10px 10px;flex:1;display:flex;flex-direction:column;gap:10px;min-height:220px;
+  }
+  .chart-inner{flex:1;position:relative;min-height:160px;}
+  #chart-svg-wrap{width:100%;height:100%;position:absolute;inset:0;}
+  #chart-svg-wrap svg{display:block;width:100%;height:100%;overflow:visible;}
+  .chart-skel{position:absolute;inset:0;border-radius:12px;}
+  .legend{display:flex;align-items:center;justify-content:center;gap:16px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:.65rem;color:var(--c-label);font-weight:500;}
+  .legend-dot{width:7px;height:7px;border-radius:50%;}
+  .legend-line{width:14px;height:2px;border-radius:1px;}
+  .legend-dash{width:14px;height:0;border-top:2px dashed;opacity:.8;}
+  .tt{
+    position:fixed;pointer-events:none;opacity:0;
+    background:#0F1525;border:1px solid #1E2A40;border-radius:10px;
+    padding:8px 12px;font-size:12px;font-family:'Satoshi','Inter',sans-serif;
+    color:var(--c-text);z-index:9999;line-height:1.7;min-width:115px;
+    box-shadow:0 6px 24px rgba(0,0,0,.6);transition:opacity 100ms ease;
+  }
+  .error-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;padding:24px;text-align:center;}
+  .error-wrap .icon{font-size:1.8rem;}
+  .error-wrap p{font-size:.8rem;color:var(--c-rhr);max-width:26ch;}
 </style>
 </head>
 <body>
-<div class="widget">
-  <div class="title-row">
-    <span class="brand">Wellness</span>
-    <span class="date-label" id="date-label">Loading…</span>
+<header>
+  <span class="brand">MyFitnessDB · Wellness</span>
+  <span class="date-pill" id="date-pill">—</span>
+</header>
+<div class="sync-row" id="sync-row"></div>
+<div class="metrics-grid">
+  <div class="metric-card hrv">
+    <span class="metric-label">HRV</span>
+    <div class="metric-value-wrap">
+      <span class="metric-value skel skel-val" id="hrv-val"></span>
+      <span class="metric-unit">ms</span>
+    </div>
+    <span class="metric-arrow" id="hrv-arrow"></span>
   </div>
-  <div class="metrics-row">
-    <div class="metric-block">
-      <div class="metric-icon-row"><span style="color:var(--c-hrv)">HRV</span><span class="metric-arrow" id="hrv-arrow"></span></div>
-      <div class="metric-value-row"><span class="metric-value skeleton skeleton-value" id="hrv-val"></span><span class="metric-unit">ms</span></div>
+  <div class="metric-card rhr">
+    <span class="metric-label">Resting HR</span>
+    <div class="metric-value-wrap">
+      <span class="metric-value skel skel-val" id="rhr-val"></span>
+      <span class="metric-unit">bpm</span>
     </div>
-    <div class="metric-divider"></div>
-    <div class="metric-block">
-      <div class="metric-icon-row"><span style="color:var(--c-rhr)">RHR</span><span class="metric-arrow" id="rhr-arrow"></span></div>
-      <div class="metric-value-row"><span class="metric-value skeleton skeleton-value" id="rhr-val"></span><span class="metric-unit">bpm</span></div>
-    </div>
-    <div class="metric-divider"></div>
-    <div class="metric-block">
-      <div class="metric-icon-row"><span style="color:var(--c-sleep)">Sleep</span><span class="metric-arrow" id="sleep-arrow"></span></div>
-      <div class="metric-value-row"><span class="metric-value skeleton skeleton-value" id="sleep-val"></span></div>
-    </div>
+    <span class="metric-arrow" id="rhr-arrow"></span>
   </div>
-  <div class="chart-wrap"><div id="chart" class="skeleton skeleton-chart"></div></div>
-  <div class="footer-row">
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-hrv)"></div>HRV</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-rhr)"></div>RHR</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-sleep)"></div>Sleep</div>
+  <div class="metric-card sleep">
+    <span class="metric-label">Sleep</span>
+    <div class="metric-value-wrap">
+      <span class="metric-value skel skel-val" id="sleep-val"></span>
     </div>
-    <span class="sync-label" id="sync-label"></span>
+    <span class="metric-arrow" id="sleep-arrow"></span>
   </div>
 </div>
-
+<div class="range-wrap" role="group" aria-label="Chart time range">
+  <button class="range-btn active" data-days="7"  onclick="setRange(7)">7D</button>
+  <button class="range-btn"        data-days="14" onclick="setRange(14)">14D</button>
+  <button class="range-btn"        data-days="28" onclick="setRange(28)">28D</button>
+</div>
+<div class="chart-panel">
+  <div class="chart-inner">
+    <div id="chart-svg-wrap">
+      <div class="chart-skel skel" id="chart-skel"></div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-line" style="background:var(--c-hrv)"></div>HRV</div>
+    <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr)"></div>RHR</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--c-sleep);opacity:.6"></div>Sleep</div>
+  </div>
+</div>
+<div class="tt" id="tt"></div>
 <script>
 const SUPABASE_URL="https://krgbagjignvbnrgybdos.supabase.co";
 const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
-
-function localDateStr(daysAgo=0){const d=new Date();d.setDate(d.getDate()-daysAgo);return d.toISOString().slice(0,10);}
+let allRows=[],activeDay=7;
+function localDateStr(n=0){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
 function secsToHM(s){return{h:Math.floor(s/3600),m:Math.floor((s%3600)/60)};}
-function formatSyncDate(u){if(!u)return"";const d=new Date(u);return"\u21BA "+d.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
-
+function fmtSync(u){if(!u)return"";const d=new Date(u);return"\u21BB "+d.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});}
 async function fetchWellness(){
-  const since=localDateStr(9);
+  const since=localDateStr(29);
   const url=`${SUPABASE_URL}/rest/v1/wellness_daily?select=date,resting_hr,hrv_last_night,sleep_duration_s,updated_at&date=gte.${since}&order=date.asc`;
   const res=await fetch(url,{headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}});
   if(!res.ok)throw new Error(`HTTP ${res.status}`);
   const data=await res.json();
-  if(!data||data.length===0)throw new Error("No wellness data.");
+  if(!data||!data.length)throw new Error("No wellness data.");
   return data;
 }
-
-function drawChart(rows){
-  const container=document.getElementById("chart");
-  container.classList.remove("skeleton","skeleton-chart");
-  container.innerHTML="";
-  const W=container.clientWidth||360,H=88;
-  const pT=6,pB=20,pL=2,pR=2;
-  const innerW=W-pL-pR,innerH=H-pT-pB,n=rows.length;
-
-  const svg=d3.select("#chart").append("svg")
-    .attr("viewBox",`0 0 ${W} ${H}`)
-    .attr("preserveAspectRatio","xMidYMid meet")
-    .style("overflow","visible");
-
-  const xScale=i=>pL+(i+0.5)*(innerW/n);
-  const sleepVals=rows.map(r=>r.sleep_duration_s?+r.sleep_duration_s:null);
-  const rhrVals=rows.map(r=>r.resting_hr?+r.resting_hr:null);
-  const hrvVals=rows.map(r=>r.hrv_last_night?+r.hrv_last_night:null);
-  const validRhr=rhrVals.filter(Boolean),validHrv=hrvVals.filter(Boolean),validSleep=sleepVals.filter(Boolean);
-  const sleepMax=d3.max(validSleep)*1.15;
-  const yRhr=d3.scaleLinear().domain([d3.min(validRhr)-4,d3.max(validRhr)+4]).range([pT+innerH,pT]);
-  const yHrv=d3.scaleLinear().domain([d3.min(validHrv)-3,d3.max(validHrv)+3]).range([pT+innerH,pT]);
-  const barW=(innerW/n)*0.36;
-
-  [0,0.5,1].forEach(t=>{
-    svg.append("line").attr("x1",pL).attr("x2",W-pR)
-      .attr("y1",pT+innerH*t).attr("y2",pT+innerH*t)
-      .attr("stroke","#1A2335").attr("stroke-width",0.5).attr("opacity",0.8);
-  });
-
-  rows.forEach((r,i)=>{
-    const sv=sleepVals[i]; if(!sv)return;
-    const barH=(sv/sleepMax)*innerH,bx=xScale(i)-barW/2,by=pT+innerH-barH;
-    svg.append("rect").attr("x",bx).attr("y",by).attr("width",barW).attr("height",barH).attr("fill","#7B9EFF").attr("opacity",.18).attr("rx",2);
-    svg.append("rect").attr("x",bx).attr("y",by).attr("width",barW).attr("height",Math.min(barH*.22,4)).attr("fill","#7B9EFF").attr("opacity",.45).attr("rx",1);
-  });
-
-  const rhrPts=rows.map((r,i)=>rhrVals[i]!==null?{x:xScale(i),y:yRhr(rhrVals[i])}:null).filter(Boolean);
-  if(rhrPts.length>=2){
-    svg.append("path").datum(rhrPts).attr("d",d3.line().x(d=>d.x).y(d=>d.y))
-      .attr("fill","none").attr("stroke","#FF5A6E").attr("stroke-width",1.8)
-      .attr("stroke-dasharray","3.5,2.5").attr("opacity",.85);
-    rhrPts.forEach(pt=>svg.append("circle").attr("cx",pt.x).attr("cy",pt.y).attr("r",2.5).attr("fill","#FF5A6E"));
-  }
-
-  const hrvPts=rows.map((r,i)=>hrvVals[i]!==null?{x:xScale(i),y:yHrv(hrvVals[i])}:null).filter(Boolean);
-  if(hrvPts.length>=2){
-    const line=d3.line().x(d=>d.x).y(d=>d.y).curve(d3.curveLinear);
-    svg.append("path").datum(hrvPts).attr("d",line).attr("fill","none").attr("stroke","#00D4C8").attr("stroke-width",7).attr("opacity",.18).attr("stroke-linecap","round");
-    const solidPath=svg.append("path").datum(hrvPts).attr("d",line).attr("fill","none").attr("stroke","#00D4C8").attr("stroke-width",2.2).attr("stroke-linecap","round").attr("stroke-linejoin","round");
-    const len=solidPath.node().getTotalLength();
-    solidPath.attr("stroke-dasharray",len).attr("stroke-dashoffset",len)
-      .transition().duration(900).ease(d3.easeCubicOut).attr("stroke-dashoffset",0);
-    const last=hrvPts[hrvPts.length-1];
-    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",7).attr("fill","#00D4C8").attr("opacity",.22);
-    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",4).attr("fill","#00D4C8");
-    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",1.8).attr("fill","#fff");
-  }
-
-  const todayStr=localDateStr(0);
-  rows.forEach((r,i)=>{
-    const d=new Date(r.date+"T12:00:00");
-    const lbl=String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0");
-    svg.append("text").attr("x",xScale(i)).attr("y",H-4).attr("text-anchor","middle")
-      .attr("font-size","7px").attr("font-family","Satoshi,Inter,sans-serif")
-      .attr("fill",r.date===todayStr?"#00D4C8":"#3A4A66").text(lbl);
-  });
-
-  const tooltip=d3.select("body").selectAll(".w-tt").data([1]).join("div").attr("class","w-tt")
-    .style("position","fixed").style("pointer-events","none").style("opacity","0")
-    .style("background","#131d30").style("border","1px solid #1E2A40").style("border-radius","8px")
-    .style("padding","8px 12px").style("font-size","12px").style("font-family","Satoshi,Inter,sans-serif")
-    .style("color","#C8D4EC").style("z-index","9999").style("line-height","1.6").style("min-width","110px")
-    .style("box-shadow","0 4px 20px rgba(0,0,0,.5)").style("transition","opacity 120ms ease");
-
-  svg.append("rect").attr("x",pL).attr("y",pT).attr("width",innerW).attr("height",innerH)
-    .attr("fill","transparent").attr("cursor","crosshair")
-    .on("mousemove",function(event){
-      const[mx]=d3.pointer(event,this);
-      const idx=Math.max(0,Math.min(n-1,Math.round((mx-pL)/(innerW/n)-0.5)));
-      const r=rows[idx];
-      const hv=r.hrv_last_night?(+r.hrv_last_night).toFixed(1):"—";
-      const rv=r.resting_hr||"—";
-      const sv=r.sleep_duration_s?(()=>{const{h,m}=secsToHM(+r.sleep_duration_s);return h+"h"+String(m).padStart(2,"0");})():"—";
-      const dl=new Date(r.date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
-      tooltip.style("opacity","1").style("left",(event.clientX+12)+"px").style("top",(event.clientY-10)+"px")
-        .html(`<div style="color:#6B7A99;font-size:11px;margin-bottom:4px">${dl}</div><div><span style="color:#00D4C8">HRV</span> ${hv} ms</div><div><span style="color:#FF5A6E">RHR</span> ${rv} bpm</div><div><span style="color:#7B9EFF">Sleep</span> ${sv}</div>`);
-    }).on("mouseleave",()=>tooltip.style("opacity","0"));
-}
-
 function renderMetrics(rows){
   const todayStr=localDateStr(0),yestStr=localDateStr(1);
   const today=rows.find(r=>r.date===todayStr)||rows[rows.length-1];
   const yest=rows.find(r=>r.date===yestStr)||(rows.length>=2?rows[rows.length-2]:null);
   const hrv=today?parseFloat(today.hrv_last_night):null;
-  const hrvPrev=yest?parseFloat(yest.hrv_last_night):null;
+  const hrvP=yest?parseFloat(yest.hrv_last_night):null;
   const rhr=today?parseInt(today.resting_hr):null;
-  const rhrPrev=yest?parseInt(yest.resting_hr):null;
-  const sleepS=today?parseInt(today.sleep_duration_s):null;
-  const sleepSP=yest?parseInt(yest.sleep_duration_s):null;
-  const UP="\u2191",DOWN="\u2193";
-  const hrvDir=(hrv&&hrvPrev&&!isNaN(hrv)&&!isNaN(hrvPrev))?(hrv>=hrvPrev?UP:DOWN):null;
-  const rhrDir=(rhr&&rhrPrev)?(rhr>rhrPrev?UP:DOWN):null;
-  const sleepDir=(sleepS&&sleepSP)?(sleepS>=sleepSP?UP:DOWN):null;
+  const rhrP=yest?parseInt(yest.resting_hr):null;
+  const slp=today?parseInt(today.sleep_duration_s):null;
+  const slpP=yest?parseInt(yest.sleep_duration_s):null;
+  const UP="\u2191",DN="\u2193";
+  const hrvDir=(hrv&&hrvP&&!isNaN(hrv)&&!isNaN(hrvP))?(hrv>=hrvP?UP:DN):null;
+  const rhrDir=(rhr&&rhrP)?(rhr>rhrP?UP:DN):null;
+  const slpDir=(slp&&slpP)?(slp>=slpP?UP:DN):null;
+  function set(vId,aId,val,color,dir,upIsGood){
+    const el=document.getElementById(vId);
+    el.classList.remove("skel","skel-val");
+    el.textContent=val;el.style.color=color;
+    const ae=document.getElementById(aId);
+    if(dir){ae.textContent=dir;ae.className="metric-arrow "+(upIsGood?(dir===UP?"good":"bad"):(dir===DN?"good":"bad"));}
+    else ae.textContent="";
+  }
   const cHRV=(!hrvDir||hrvDir===UP)?"#00D4C8":"#FF5A6E";
   const cRHR="#FF5A6E";
-  const cSleep=(!sleepDir||sleepDir===UP)?"#7B9EFF":"#FF5A6E";
-  const sleepHM=sleepS?secsToHM(sleepS):null;
-  const sleepStr=sleepHM?`${sleepHM.h}h${String(sleepHM.m).padStart(2,"0")}`:"—";
-  const hrvStr=(hrv!==null&&!isNaN(hrv))?hrv.toFixed(1):"—";
-  const rhrStr=rhr!==null?String(rhr):"—";
-
-  function setMetric(vId,aId,val,color,dir,arrowIsGood){
-    const el=document.getElementById(vId);
-    el.classList.remove("skeleton","skeleton-value");
-    el.textContent=val; el.style.color=color;
-    const ae=document.getElementById(aId);
-    if(dir){ae.textContent=dir;ae.className="metric-arrow "+(arrowIsGood?(dir===UP?"good":"bad"):(dir===DOWN?"good":"bad"));}
-  }
-  setMetric("hrv-val","hrv-arrow",hrvStr,cHRV,hrvDir,true);
-  setMetric("rhr-val","rhr-arrow",rhrStr,cRHR,rhrDir,false);
-  setMetric("sleep-val","sleep-arrow",sleepStr,cSleep,sleepDir,true);
-
-  const now=new Date();
-  document.getElementById("date-label").textContent=now.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}).toUpperCase();
+  const cSleep=(!slpDir||slpDir===UP)?"#7B9EFF":"#FF5A6E";
+  const slpHM=slp?secsToHM(slp):null;
+  set("hrv-val","hrv-arrow",hrv!==null&&!isNaN(hrv)?hrv.toFixed(1):"—",cHRV,hrvDir,true);
+  set("rhr-val","rhr-arrow",rhr!==null?String(rhr):"—",cRHR,rhrDir,false);
+  set("sleep-val","sleep-arrow",slpHM?`${slpHM.h}h${String(slpHM.m).padStart(2,"0")}`:"—",cSleep,slpDir,true);
+  document.getElementById("date-pill").textContent=new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}).toUpperCase();
   let syncTime=null;
   rows.forEach(r=>{if(r.updated_at&&(!syncTime||r.updated_at>syncTime))syncTime=r.updated_at;});
-  document.getElementById("sync-label").textContent=syncTime?formatSyncDate(syncTime):"";
+  document.getElementById("sync-row").textContent=syncTime?fmtSync(syncTime):"";
 }
-
+function drawChart(rows){
+  const wrap=document.getElementById("chart-svg-wrap");
+  wrap.querySelectorAll("svg").forEach(s=>s.remove());
+  const skel=document.getElementById("chart-skel");
+  const W=wrap.clientWidth||340,H=wrap.clientHeight||180,n=rows.length;
+  if(!n){skel.style.display="block";return;}
+  const pT=10,pB=28,pL=32,pR=10,iW=W-pL-pR,iH=H-pT-pB;
+  const sleepVals=rows.map(r=>r.sleep_duration_s?+r.sleep_duration_s:null);
+  const rhrVals=rows.map(r=>r.resting_hr?+r.resting_hr:null);
+  const hrvVals=rows.map(r=>r.hrv_last_night?+r.hrv_last_night:null);
+  const vSleep=sleepVals.filter(Boolean),vRhr=rhrVals.filter(Boolean),vHrv=hrvVals.filter(Boolean);
+  if(!vSleep.length&&!vRhr.length&&!vHrv.length){skel.style.display="block";return;}
+  const sleepMax=(d3.max(vSleep)||1)*1.15;
+  const yRhr=d3.scaleLinear().domain([d3.min(vRhr)-4,d3.max(vRhr)+4]).range([pT+iH,pT]);
+  const yHrv=d3.scaleLinear().domain([d3.min(vHrv)-3,d3.max(vHrv)+3]).range([pT+iH,pT]);
+  const xScale=i=>pL+(i+0.5)*(iW/n);
+  const barW=Math.max(2,(iW/n)*0.38);
+  const svg=d3.select("#chart-svg-wrap").append("svg")
+    .attr("viewBox",`0 0 ${W} ${H}`).attr("preserveAspectRatio","xMidYMid meet").style("overflow","visible");
+  if(vHrv.length){
+    yHrv.ticks(4).forEach(t=>{
+      const y=yHrv(t);
+      svg.append("line").attr("x1",pL).attr("x2",W-pR).attr("y1",y).attr("y2",y).attr("stroke","#1A2335").attr("stroke-width",.5).attr("opacity",.9);
+      svg.append("text").attr("x",pL-5).attr("y",y+3.5).attr("text-anchor","end").attr("font-size","7.5px").attr("font-family","Satoshi,Inter,sans-serif").attr("fill","#3A4A66").text(t);
+    });
+  }
+  rows.forEach((r,i)=>{
+    const sv=sleepVals[i];if(!sv)return;
+    const bh=(sv/sleepMax)*iH,bx=xScale(i)-barW/2,by=pT+iH-bh;
+    svg.append("rect").attr("x",bx).attr("y",by).attr("width",barW).attr("height",bh).attr("fill","#7B9EFF").attr("opacity",.15).attr("rx",2);
+    svg.append("rect").attr("x",bx).attr("y",by).attr("width",barW).attr("height",Math.min(bh*.2,3)).attr("fill","#7B9EFF").attr("opacity",.4).attr("rx",1);
+  });
+  const rhrPts=rows.map((r,i)=>rhrVals[i]!==null?{x:xScale(i),y:yRhr(rhrVals[i])}:null).filter(Boolean);
+  if(rhrPts.length>=2){
+    svg.append("path").datum(rhrPts).attr("d",d3.line().x(d=>d.x).y(d=>d.y).curve(d3.curveCatmullRom.alpha(0.5)))
+      .attr("fill","none").attr("stroke","#FF5A6E").attr("stroke-width",1.6).attr("stroke-dasharray","3.5,2.5").attr("opacity",.8);
+    rhrPts.forEach(pt=>svg.append("circle").attr("cx",pt.x).attr("cy",pt.y).attr("r",2).attr("fill","#FF5A6E").attr("opacity",.9));
+  }
+  const hrvPts=rows.map((r,i)=>hrvVals[i]!==null?{x:xScale(i),y:yHrv(hrvVals[i])}:null).filter(Boolean);
+  if(hrvPts.length>=2){
+    const lineGen=d3.line().x(d=>d.x).y(d=>d.y).curve(d3.curveCatmullRom.alpha(0.5));
+    const areaGen=d3.area().x(d=>d.x).y0(pT+iH).y1(d=>d.y).curve(d3.curveCatmullRom.alpha(0.5));
+    const defs=svg.append("defs");
+    const grad=defs.append("linearGradient").attr("id","hrv-grad").attr("x1","0").attr("y1","0").attr("x2","0").attr("y2","1");
+    grad.append("stop").attr("offset","0%").attr("stop-color","#00D4C8").attr("stop-opacity",.5);
+    grad.append("stop").attr("offset","100%").attr("stop-color","#00D4C8").attr("stop-opacity",0);
+    svg.append("path").datum(hrvPts).attr("d",areaGen).attr("fill","url(#hrv-grad)").attr("opacity",.25);
+    svg.append("path").datum(hrvPts).attr("d",lineGen).attr("fill","none").attr("stroke","#00D4C8").attr("stroke-width",6).attr("opacity",.12).attr("stroke-linecap","round");
+    const solid=svg.append("path").datum(hrvPts).attr("d",lineGen).attr("fill","none").attr("stroke","#00D4C8").attr("stroke-width",2.2).attr("stroke-linecap","round").attr("stroke-linejoin","round");
+    const len=solid.node().getTotalLength();
+    solid.attr("stroke-dasharray",len).attr("stroke-dashoffset",len).transition().duration(700).ease(d3.easeCubicOut).attr("stroke-dashoffset",0);
+    const last=hrvPts[hrvPts.length-1];
+    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",6).attr("fill","#00D4C8").attr("opacity",.18);
+    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",3.5).attr("fill","#00D4C8");
+    svg.append("circle").attr("cx",last.x).attr("cy",last.y).attr("r",1.5).attr("fill","#fff");
+  }
+  const todayStr=localDateStr(0);
+  const labelEvery=n<=7?1:n<=14?2:4;
+  rows.forEach((r,i)=>{
+    if(i%labelEvery!==0&&r.date!==todayStr)return;
+    const d=new Date(r.date+"T12:00:00");
+    const lbl=n<=14?String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0"):String(d.getDate())+"/"+(d.getMonth()+1);
+    svg.append("text").attr("x",xScale(i)).attr("y",H-6).attr("text-anchor","middle")
+      .attr("font-size","7.5px").attr("font-family","Satoshi,Inter,sans-serif")
+      .attr("fill",r.date===todayStr?"#00D4C8":"#3A4A66")
+      .attr("font-weight",r.date===todayStr?"700":"400").text(lbl);
+  });
+  const tt=document.getElementById("tt");
+  svg.append("rect").attr("x",pL).attr("y",pT).attr("width",iW).attr("height",iH)
+    .attr("fill","transparent").attr("cursor","crosshair")
+    .on("mousemove",function(event){
+      const[mx]=d3.pointer(event,this);
+      const idx=Math.max(0,Math.min(n-1,Math.round(mx/(iW/n)-0.5)));
+      const r=rows[idx];
+      const hv=r.hrv_last_night?(+r.hrv_last_night).toFixed(1):"—";
+      const rv=r.resting_hr||"—";
+      const sv=r.sleep_duration_s?(()=>{const{h,m}=secsToHM(+r.sleep_duration_s);return h+"h"+String(m).padStart(2,"0");})():"—";
+      const dl=new Date(r.date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+      tt.style.opacity="1";tt.style.left=(event.clientX+14)+"px";tt.style.top=(event.clientY-14)+"px";
+      tt.innerHTML=`<div style="color:#6B7A99;font-size:10px;margin-bottom:3px;font-weight:600">${dl}</div><div><span style="color:#00D4C8;font-weight:700">HRV</span>&nbsp;${hv} ms</div><div><span style="color:#FF5A6E;font-weight:700">RHR</span>&nbsp;${rv} bpm</div><div><span style="color:#7B9EFF;font-weight:700">Sleep</span>&nbsp;${sv}</div>`;
+    }).on("mouseleave",()=>{tt.style.opacity="0";});
+  skel.style.display="none";
+}
+function setRange(days){
+  activeDay=days;
+  document.querySelectorAll(".range-btn").forEach(b=>{b.classList.toggle("active",+b.dataset.days===days);});
+  drawChart(allRows.slice(-days));
+}
 function showError(msg){
-  document.getElementById("chart").innerHTML=`<div class="error-state"><span class="icon">\u26A0\uFE0F</span><p>${msg}</p></div>`;
-  ["hrv-val","rhr-val","sleep-val"].forEach(id=>{const el=document.getElementById(id);el.classList.remove("skeleton","skeleton-value");el.textContent="—";el.style.color="#6B7A99";});
+  document.getElementById("chart-skel").innerHTML=`<div class="error-wrap"><span class="icon">⚠️</span><p>${msg}</p></div>`;
+  ["hrv-val","rhr-val","sleep-val"].forEach(id=>{const el=document.getElementById(id);el.classList.remove("skel","skel-val");el.textContent="—";el.style.color="#6B7A99";});
 }
-
-(async function(){
-  try{const rows=await fetchWellness();renderMetrics(rows);drawChart(rows.slice(-7));}
+(async()=>{
+  try{allRows=await fetchWellness();renderMetrics(allRows);setRange(activeDay);}
   catch(e){showError(e.message);}
 })();
 </script>
