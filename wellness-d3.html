@@ -60,13 +60,40 @@ body{
 }
 .tab-btn .tab-icon{ font-size:.85rem; }
 
-/* ── Tab panels ── */
-.tab-panel{
-  display:none; flex-direction:column; gap:10px;
-  padding:10px 16px calc(var(--safe-b) + 16px);
-  flex:1;
+/* ── Swipe hint dots ── */
+.swipe-hint{
+  display:flex; justify-content:center; align-items:center; gap:5px;
+  padding:6px 0 2px; flex-shrink:0;
+  transition:opacity 600ms ease;
 }
-.tab-panel.active{ display:flex; }
+.swipe-hint.hidden{ opacity:0; pointer-events:none; }
+.swipe-dot{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--dim); transition:background 300ms ease, transform 300ms ease;
+}
+.swipe-dot.active{ background:var(--good); transform:scale(1.35); }
+
+/* ── Tab panels ── */
+.panels-wrap{
+  display:flex; flex-direction:column; flex:1; overflow:hidden;
+  /* panels slide via JS translateX on inner wrapper */
+  position:relative;
+}
+.panels-slider{
+  display:flex; flex-direction:row;
+  width:200%; /* two panels side by side */
+  flex:1;
+  transition:transform 320ms cubic-bezier(.4,0,.2,1);
+  will-change:transform;
+}
+.tab-panel{
+  width:50%; /* each panel = 100vw */
+  flex-shrink:0;
+  display:flex; flex-direction:column; gap:10px;
+  padding:10px 16px calc(var(--safe-b) + 16px);
+  overflow-y:auto; overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+}
 
 /* ══════════════════════════════════════════════
    WELLNESS TAB
@@ -232,138 +259,151 @@ body{
   </button>
 </div>
 
-<!-- ══ WELLNESS PANEL ══ -->
-<div class="tab-panel active" id="panel-wellness">
-  <div class="sync-row" id="sync-row"></div>
-  <div class="metrics-grid">
-    <div class="metric-card hrv">
-      <span class="metric-label">HRV</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="hrv-val" style="min-width:44px;min-height:28px"></span>
-        <span class="metric-unit">ms</span>
-      </div>
-      <span class="metric-arrow" id="hrv-arrow"></span>
-    </div>
-    <div class="metric-card rhr">
-      <span class="metric-label">Resting HR</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="rhr-val" style="min-width:36px;min-height:28px"></span>
-        <span class="metric-unit">bpm</span>
-      </div>
-      <span class="metric-arrow" id="rhr-arrow"></span>
-    </div>
-    <div class="metric-card sleep">
-      <span class="metric-label">Sleep</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="sleep-val" style="min-width:44px;min-height:28px"></span>
-      </div>
-      <span class="metric-arrow" id="sleep-arrow"></span>
-    </div>
-  </div>
-  <div class="w-range-wrap" role="group">
-    <button class="w-range-btn active" data-days="7"  onclick="wSetRange(7)">7D</button>
-    <button class="w-range-btn"        data-days="14" onclick="wSetRange(14)">14D</button>
-    <button class="w-range-btn"        data-days="28" onclick="wSetRange(28)">28D</button>
-  </div>
-  <div class="chart-panel">
-    <div class="chart-inner">
-      <div id="w-chart-wrap">
-        <div class="chart-skel sk" id="chart-skel"></div>
-      </div>
-    </div>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-line" style="background:var(--c-hrv)"></div>HRV</div>
-      <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr)"></div>RHR</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-sleep);opacity:.6"></div>Sleep</div>
-    </div>
-  </div>
+<!-- Swipe hint dots -->
+<div class="swipe-hint" id="swipe-hint">
+  <div class="swipe-dot active" id="dot-0"></div>
+  <div class="swipe-dot" id="dot-1"></div>
 </div>
 
-<!-- ══ READINESS PANEL ══ -->
-<div class="tab-panel" id="panel-readiness">
-  <div class="hero">
-    <div class="gauge-col">
-      <svg id="gauge-svg" viewBox="0 0 120 110" width="120" height="110"></svg>
-    </div>
-    <div class="hero-right">
-      <div class="hero-state sk sk-b" id="score-state" style="min-width:70px;min-height:14px">—</div>
-      <div class="hero-desc" id="hero-desc"></div>
-      <div class="hero-sub" id="hero-sub"></div>
-    </div>
-  </div>
-  <div class="pillars">
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">HRV</span><span class="pillar-pct sk" id="pp-hrv">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-hrv" style="background:var(--c-hrv)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-hrv" style="color:var(--c-hrv);min-width:44px">—</span>
-        <span class="pillar-unit">ms</span>
-        <span class="pillar-delta" id="pd-hrv"></span>
+<!-- Sliding panels wrapper -->
+<div class="panels-wrap" id="panels-wrap">
+  <div class="panels-slider" id="panels-slider">
+
+    <!-- ══ WELLNESS PANEL ══ -->
+    <div class="tab-panel" id="panel-wellness">
+      <div class="sync-row" id="sync-row"></div>
+      <div class="metrics-grid">
+        <div class="metric-card hrv">
+          <span class="metric-label">HRV</span>
+          <div class="metric-value-wrap">
+            <span class="metric-value sk" id="hrv-val" style="min-width:44px;min-height:28px"></span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-arrow" id="hrv-arrow"></span>
+        </div>
+        <div class="metric-card rhr">
+          <span class="metric-label">Resting HR</span>
+          <div class="metric-value-wrap">
+            <span class="metric-value sk" id="rhr-val" style="min-width:36px;min-height:28px"></span>
+            <span class="metric-unit">bpm</span>
+          </div>
+          <span class="metric-arrow" id="rhr-arrow"></span>
+        </div>
+        <div class="metric-card sleep">
+          <span class="metric-label">Sleep</span>
+          <div class="metric-value-wrap">
+            <span class="metric-value sk" id="sleep-val" style="min-width:44px;min-height:28px"></span>
+          </div>
+          <span class="metric-arrow" id="sleep-arrow"></span>
+        </div>
+      </div>
+      <div class="w-range-wrap" role="group">
+        <button class="w-range-btn active" data-days="7"  onclick="wSetRange(7)">7D</button>
+        <button class="w-range-btn"        data-days="14" onclick="wSetRange(14)">14D</button>
+        <button class="w-range-btn"        data-days="28" onclick="wSetRange(28)">28D</button>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-inner">
+          <div id="w-chart-wrap">
+            <div class="chart-skel sk" id="chart-skel"></div>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:var(--c-hrv)"></div>HRV</div>
+          <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr)"></div>RHR</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--c-sleep);opacity:.6"></div>Sleep</div>
+        </div>
       </div>
     </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Sleep</span><span class="pillar-pct sk" id="pp-sleep">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-sleep" style="background:var(--c-sleep)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-sleep" style="color:var(--c-sleep);min-width:32px">—</span>
-        <span class="pillar-unit">/100</span>
-        <span class="pillar-delta" id="pd-sleep"></span>
+
+    <!-- ══ READINESS PANEL ══ -->
+    <div class="tab-panel" id="panel-readiness">
+      <div class="hero">
+        <div class="gauge-col">
+          <svg id="gauge-svg" viewBox="0 0 120 110" width="120" height="110"></svg>
+        </div>
+        <div class="hero-right">
+          <div class="hero-state sk sk-b" id="score-state" style="min-width:70px;min-height:14px">—</div>
+          <div class="hero-desc" id="hero-desc"></div>
+          <div class="hero-sub" id="hero-sub"></div>
+        </div>
       </div>
-    </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Resting HR</span><span class="pillar-pct sk" id="pp-rhr">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-rhr" style="background:var(--c-rhr)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-rhr" style="color:var(--c-rhr);min-width:32px">—</span>
-        <span class="pillar-unit">bpm</span>
-        <span class="pillar-delta" id="pd-rhr"></span>
+      <div class="pillars">
+        <div class="pillar">
+          <div class="pillar-top"><span class="pillar-name">HRV</span><span class="pillar-pct sk" id="pp-hrv">—</span></div>
+          <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-hrv" style="background:var(--c-hrv)"></div></div>
+          <div class="pillar-bottom">
+            <span class="pillar-value sk sk-b" id="pv-hrv" style="color:var(--c-hrv);min-width:44px">—</span>
+            <span class="pillar-unit">ms</span>
+            <span class="pillar-delta" id="pd-hrv"></span>
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-top"><span class="pillar-name">Sleep</span><span class="pillar-pct sk" id="pp-sleep">—</span></div>
+          <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-sleep" style="background:var(--c-sleep)"></div></div>
+          <div class="pillar-bottom">
+            <span class="pillar-value sk sk-b" id="pv-sleep" style="color:var(--c-sleep);min-width:32px">—</span>
+            <span class="pillar-unit">/100</span>
+            <span class="pillar-delta" id="pd-sleep"></span>
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-top"><span class="pillar-name">Resting HR</span><span class="pillar-pct sk" id="pp-rhr">—</span></div>
+          <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-rhr" style="background:var(--c-rhr)"></div></div>
+          <div class="pillar-bottom">
+            <span class="pillar-value sk sk-b" id="pv-rhr" style="color:var(--c-rhr);min-width:32px">—</span>
+            <span class="pillar-unit">bpm</span>
+            <span class="pillar-delta" id="pd-rhr"></span>
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-top"><span class="pillar-name">Stress</span><span class="pillar-pct sk" id="pp-stress">—</span></div>
+          <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-stress" style="background:var(--c-stress)"></div></div>
+          <div class="pillar-bottom">
+            <span class="pillar-value sk sk-b" id="pv-stress" style="color:var(--c-stress);min-width:28px">—</span>
+            <span class="pillar-unit">avg</span>
+            <span class="pillar-delta" id="pd-stress"></span>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Stress</span><span class="pillar-pct sk" id="pp-stress">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-stress" style="background:var(--c-stress)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-stress" style="color:var(--c-stress);min-width:28px">—</span>
-        <span class="pillar-unit">avg</span>
-        <span class="pillar-delta" id="pd-stress"></span>
+      <div class="sleep-row">
+        <div class="sleep-seg">
+          <span class="sleep-seg-label">Deep</span>
+          <span class="sleep-seg-val sk sk-b" id="sl-deep" style="color:#5A7FFF;min-width:34px">—</span>
+          <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-deep" style="background:#5A7FFF"></div></div>
+        </div>
+        <div class="sleep-seg">
+          <span class="sleep-seg-label">Light</span>
+          <span class="sleep-seg-val sk sk-b" id="sl-light" style="color:#7B9EFF;min-width:34px">—</span>
+          <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-light" style="background:#7B9EFF"></div></div>
+        </div>
+        <div class="sleep-seg">
+          <span class="sleep-seg-label">REM</span>
+          <span class="sleep-seg-val sk sk-b" id="sl-rem" style="color:#A78BFF;min-width:34px">—</span>
+          <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-rem" style="background:#A78BFF"></div></div>
+        </div>
+        <div class="sleep-seg">
+          <span class="sleep-seg-label">Awake</span>
+          <span class="sleep-seg-val sk sk-b" id="sl-awake" style="color:#FF5A6E;min-width:34px">—</span>
+          <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-awake" style="background:#FF5A6E"></div></div>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="sleep-row">
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Deep</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-deep" style="color:#5A7FFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-deep" style="background:#5A7FFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Light</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-light" style="color:#7B9EFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-light" style="background:#7B9EFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">REM</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-rem" style="color:#A78BFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-rem" style="background:#A78BFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Awake</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-awake" style="color:#FF5A6E;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-awake" style="background:#FF5A6E"></div></div>
-    </div>
-  </div>
-  <div class="r-chart-section">
-    <div class="section-header">
-      <span class="section-title">Readiness History</span>
-      <div class="r-range-wrap">
-        <button class="r-range-btn active" data-d="7"  onclick="rSetRange(7)">7D</button>
-        <button class="r-range-btn"        data-d="14" onclick="rSetRange(14)">14D</button>
-        <button class="r-range-btn"        data-d="28" onclick="rSetRange(28)">28D</button>
+      <div class="r-chart-section">
+        <div class="section-header">
+          <span class="section-title">Readiness History</span>
+          <div class="r-range-wrap">
+            <button class="r-range-btn active" data-d="7"  onclick="rSetRange(7)">7D</button>
+            <button class="r-range-btn"        data-d="14" onclick="rSetRange(14)">14D</button>
+            <button class="r-range-btn"        data-d="28" onclick="rSetRange(28)">28D</button>
+          </div>
+        </div>
+        <div class="r-chart-canvas" id="r-ch-wrap"></div>
       </div>
+      <div class="sync-footer" id="sync-footer"></div>
     </div>
-    <div class="r-chart-canvas" id="r-ch-wrap"></div>
-  </div>
-  <div class="sync-footer" id="sync-footer"></div>
-</div>
+
+  </div><!-- /panels-slider -->
+</div><!-- /panels-wrap -->
 
 <div class="tt" id="tt"></div>
 
@@ -375,6 +415,8 @@ let allRows = [];
 let wActiveDay = 7;
 let rActiveDay = 7;
 let readinessRendered = false;
+let currentTab = 'wellness';
+const TABS = ['wellness','readiness'];
 
 const localDate = (n=0) => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
 const hm = s => ({ h:Math.floor(s/3600), m:Math.floor((s%3600)/60) });
@@ -384,20 +426,75 @@ const rmSk = id => { const e=document.getElementById(id); if(e){e.classList.remo
 
 const TAB_SUBTITLES = { wellness:"Wellness Metrics", readiness:"Daily Readiness Score" };
 
+/* ── Swipe hint ── */
+let hintShown = true;
+function updateDots(tab) {
+  const idx = TABS.indexOf(tab);
+  document.querySelectorAll('.swipe-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
+}
+function hideHint() {
+  if (!hintShown) return;
+  hintShown = false;
+  document.getElementById('swipe-hint').classList.add('hidden');
+}
+
+/* ── Tab switching (used by both buttons and swipe) ── */
 function switchTab(tab) {
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-  document.getElementById(`tab-${tab}`).classList.add("active");
-  document.getElementById(`panel-${tab}`).classList.add("active");
-  document.getElementById("tab-subtitle").textContent = TAB_SUBTITLES[tab];
-  if (tab === "readiness" && !readinessRendered && allRows.length) {
+  if (tab === currentTab) return;
+  currentTab = tab;
+  const idx = TABS.indexOf(tab);
+  // slide the panel strip
+  document.getElementById('panels-slider').style.transform = `translateX(${-idx * 50}%)`;
+  // update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
+  updateDots(tab);
+  if (tab === 'readiness' && !readinessRendered && allRows.length) {
     renderReadiness(allRows);
     readinessRendered = true;
   }
-  if (tab === "wellness" && allRows.length) {
+  if (tab === 'wellness' && allRows.length) {
     requestAnimationFrame(() => wSetRange(wActiveDay));
   }
 }
+
+/* ── Swipe gesture detection ── */
+(function initSwipe() {
+  const wrap = document.getElementById('panels-wrap');
+  let tx = 0, ty = 0, locked = false, cancelled = false;
+  const MIN_X = 50;   // px threshold to count as a swipe
+  const MAX_Y = 80;   // px vertical drift before we cancel
+
+  wrap.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+    locked = false;
+    cancelled = false;
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (cancelled) return;
+    const dx = e.touches[0].clientX - tx;
+    const dy = e.touches[0].clientY - ty;
+    if (!locked) {
+      // if vertical movement dominates early on, cancel swipe so page scrolls normally
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { cancelled = true; return; }
+      if (Math.abs(dx) > 10) locked = true;
+    }
+    // if horizontal swipe locked, suppress vertical scroll only if it's truly horizontal
+    if (locked && Math.abs(dy) < MAX_Y) e.preventDefault();
+  }, { passive: false });
+
+  wrap.addEventListener('touchend', e => {
+    if (cancelled || !locked) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dy) >= MAX_Y) return; // too much vertical drift
+    if (dx < -MIN_X && currentTab === 'wellness')  { switchTab('readiness'); hideHint(); }
+    if (dx >  MIN_X && currentTab === 'readiness') { switchTab('wellness');  hideHint(); }
+  }, { passive: true });
+})();
 
 async function fetchData() {
   const since = localDate(30);
@@ -437,7 +534,7 @@ function renderWellness(rows) {
   setMetric("hrv-val","hrv-arrow",hrv!==null&&!isNaN(hrv)?hrv.toFixed(1):"—",(!hrvDir||hrvDir===UP)?"#00D4C8":"#FF5A6E",hrvDir,true);
   setMetric("rhr-val","rhr-arrow",rhr!==null?String(rhr):"—","#FF5A6E",rhrDir,false);
   const slpHM=slp?hm(slp):null;
-  setMetric("sleep-val","sleep-arrow",slpHM?`${slpHM.h}h${String(slpHM.m).padStart(2,"0")}`:"—",(!slpDir||slpDir===UP)?"#7B9EFF":"#FF5A6E",slpDir,true);
+  setMetric("sleep-val","sleep-arrow",slpHM?`${slpHM.h}h${String(slpHM.m).padStart(2,"00")}`:"—",(!slpDir||slpDir===UP)?"#7B9EFF":"#FF5A6E",slpDir,true);
   document.getElementById("date-badge").textContent =
     new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}).toUpperCase();
   let syncTime=null;
