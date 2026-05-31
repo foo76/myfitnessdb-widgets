@@ -76,18 +76,17 @@ body{
 /* ── Tab panels ── */
 .panels-wrap{
   display:flex; flex-direction:column; flex:1; overflow:hidden;
-  /* panels slide via JS translateX on inner wrapper */
   position:relative;
 }
 .panels-slider{
   display:flex; flex-direction:row;
-  width:200%; /* two panels side by side */
+  width:200%;
   flex:1;
   transition:transform 320ms cubic-bezier(.4,0,.2,1);
   will-change:transform;
 }
 .tab-panel{
-  width:50%; /* each panel = 100vw */
+  width:50%;
   flex-shrink:0;
   display:flex; flex-direction:column; gap:10px;
   padding:10px 16px calc(var(--safe-b) + 16px);
@@ -121,6 +120,25 @@ body{
 .metric-arrow{ font-size:.72rem; font-weight:700; line-height:1; }
 .metric-arrow.good{ color:var(--optimal); }
 .metric-arrow.bad{ color:var(--low); }
+
+/* ── HRV mode label ── */
+.hrv-mode-label{
+  font-size:.5rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--c-hrv); background:rgba(0,212,200,.1); border:1px solid rgba(0,212,200,.2);
+  border-radius:6px; padding:2px 6px; line-height:1.4;
+  transition:opacity 200ms ease;
+}
+
+/* ── Tappable HRV card ── */
+.metric-card.hrv.tappable{
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform 120ms ease, box-shadow 120ms ease;
+}
+.metric-card.hrv.tappable:active{
+  transform:scale(.95);
+  box-shadow:0 0 0 2px rgba(0,212,200,.3);
+}
 
 .w-range-wrap{
   display:flex; background:var(--surface); border:1px solid var(--border);
@@ -273,13 +291,15 @@ body{
     <div class="tab-panel" id="panel-wellness">
       <div class="sync-row" id="sync-row"></div>
       <div class="metrics-grid">
-        <div class="metric-card hrv">
+        <!-- HRV card — tappable to toggle last night / 7d avg -->
+        <div class="metric-card hrv tappable" id="hrv-card" onclick="toggleHrvMode()">
           <span class="metric-label">HRV</span>
           <div class="metric-value-wrap">
             <span class="metric-value sk" id="hrv-val" style="min-width:44px;min-height:28px"></span>
             <span class="metric-unit">ms</span>
           </div>
           <span class="metric-arrow" id="hrv-arrow"></span>
+          <span class="hrv-mode-label" id="hrv-mode-label">LAST NIGHT</span>
         </div>
         <div class="metric-card rhr">
           <span class="metric-label">Resting HR</span>
@@ -309,7 +329,7 @@ body{
           </div>
         </div>
         <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:var(--c-hrv)"></div>HRV</div>
+          <div class="legend-item"><div class="legend-line" style="background:var(--c-hrv)"></div><span id="legend-hrv-label">HRV</span></div>
           <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr)"></div>RHR</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--c-sleep);opacity:.6"></div>Sleep</div>
         </div>
@@ -416,6 +436,8 @@ let wActiveDay = 7;
 let rActiveDay = 7;
 let readinessRendered = false;
 let currentTab = 'wellness';
+// HRV toggle: 'last_night' | 'weekly_avg'  — persists across tab switches
+let hrvMode = 'last_night';
 const TABS = ['wellness','readiness'];
 
 const localDate = (n=0) => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
@@ -438,14 +460,12 @@ function hideHint() {
   document.getElementById('swipe-hint').classList.add('hidden');
 }
 
-/* ── Tab switching (used by both buttons and swipe) ── */
+/* ── Tab switching ── */
 function switchTab(tab) {
   if (tab === currentTab) return;
   currentTab = tab;
   const idx = TABS.indexOf(tab);
-  // slide the panel strip
   document.getElementById('panels-slider').style.transform = `translateX(${-idx * 50}%)`;
-  // update tab buttons
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
@@ -463,8 +483,8 @@ function switchTab(tab) {
 (function initSwipe() {
   const wrap = document.getElementById('panels-wrap');
   let tx = 0, ty = 0, locked = false, cancelled = false;
-  const MIN_X = 50;   // px threshold to count as a swipe
-  const MAX_Y = 80;   // px vertical drift before we cancel
+  const MIN_X = 50;
+  const MAX_Y = 80;
 
   wrap.addEventListener('touchstart', e => {
     tx = e.touches[0].clientX;
@@ -478,11 +498,9 @@ function switchTab(tab) {
     const dx = e.touches[0].clientX - tx;
     const dy = e.touches[0].clientY - ty;
     if (!locked) {
-      // if vertical movement dominates early on, cancel swipe so page scrolls normally
       if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { cancelled = true; return; }
       if (Math.abs(dx) > 10) locked = true;
     }
-    // if horizontal swipe locked, suppress vertical scroll only if it's truly horizontal
     if (locked && Math.abs(dy) < MAX_Y) e.preventDefault();
   }, { passive: false });
 
@@ -490,11 +508,57 @@ function switchTab(tab) {
     if (cancelled || !locked) return;
     const dx = e.changedTouches[0].clientX - tx;
     const dy = e.changedTouches[0].clientY - ty;
-    if (Math.abs(dy) >= MAX_Y) return; // too much vertical drift
+    if (Math.abs(dy) >= MAX_Y) return;
     if (dx < -MIN_X && currentTab === 'wellness')  { switchTab('readiness'); hideHint(); }
     if (dx >  MIN_X && currentTab === 'readiness') { switchTab('wellness');  hideHint(); }
   }, { passive: true });
 })();
+
+/* ══════════════════════════════════════════════
+   HRV MODE TOGGLE
+══════════════════════════════════════════════ */
+function toggleHrvMode() {
+  if (!allRows.length) return;
+  hrvMode = (hrvMode === 'last_night') ? 'weekly_avg' : 'last_night';
+  applyHrvMode();
+  // redraw chart for current range
+  wSetRange(wActiveDay);
+}
+
+function applyHrvMode() {
+  const isAvg = (hrvMode === 'weekly_avg');
+  const todayStr = localDate(0), yestStr = localDate(1);
+  const today = allRows.find(r => r.date === todayStr) || allRows[allRows.length - 1];
+  const yest  = allRows.find(r => r.date === yestStr)  || (allRows.length >= 2 ? allRows[allRows.length - 2] : null);
+
+  const valEl   = document.getElementById('hrv-val');
+  const arrowEl = document.getElementById('hrv-arrow');
+  const modeEl  = document.getElementById('hrv-mode-label');
+  const legendEl = document.getElementById('legend-hrv-label');
+
+  if (isAvg) {
+    const avg = today ? parseFloat(today.hrv_weekly_avg) : null;
+    valEl.textContent  = (avg !== null && !isNaN(avg)) ? avg.toFixed(1) : '—';
+    valEl.style.color  = 'var(--c-hrv)';
+    arrowEl.textContent = '';           // hide arrow in avg mode
+    modeEl.textContent  = '7D AVG';
+    legendEl.textContent = 'HRV 7D';
+  } else {
+    const hrv  = today ? parseFloat(today.hrv_last_night) : null;
+    const hrvP = yest  ? parseFloat(yest.hrv_last_night)  : null;
+    const dir  = (hrv && hrvP && !isNaN(hrv) && !isNaN(hrvP)) ? (hrv >= hrvP ? '↑' : '↓') : null;
+    valEl.textContent  = (hrv !== null && !isNaN(hrv)) ? hrv.toFixed(1) : '—';
+    valEl.style.color  = (!dir || dir === '↑') ? '#00D4C8' : '#FF5A6E';
+    if (dir) {
+      arrowEl.textContent = dir;
+      arrowEl.className   = 'metric-arrow ' + (dir === '↑' ? 'good' : 'bad');
+    } else {
+      arrowEl.textContent = '';
+    }
+    modeEl.textContent  = 'LAST NIGHT';
+    legendEl.textContent = 'HRV';
+  }
+}
 
 async function fetchData() {
   const since = localDate(30);
@@ -514,29 +578,35 @@ function renderWellness(rows) {
   const todayStr=localDate(0), yestStr=localDate(1);
   const today=rows.find(r=>r.date===todayStr)||rows[rows.length-1];
   const yest=rows.find(r=>r.date===yestStr)||(rows.length>=2?rows[rows.length-2]:null);
-  const hrv=today?parseFloat(today.hrv_last_night):null;
-  const hrvP=yest?parseFloat(yest.hrv_last_night):null;
+  // RHR
   const rhr=today?parseInt(today.resting_hr):null;
   const rhrP=yest?parseInt(yest.resting_hr):null;
+  const rhrDir=(rhr&&rhrP)?(rhr>rhrP?'↑':'↓'):null;
+  const rhrEl=document.getElementById('rhr-val');
+  rhrEl.classList.remove('sk'); rhrEl.textContent=rhr!=null?String(rhr):'—'; rhrEl.style.color='#FF5A6E';
+  const rhrA=document.getElementById('rhr-arrow');
+  if(rhrDir){rhrA.textContent=rhrDir;rhrA.className='metric-arrow '+(rhrDir==='↑'?'bad':'good');}
+  else rhrA.textContent='';
+  // Sleep
   const slp=today?parseInt(today.sleep_duration_s):null;
   const slpP=yest?parseInt(yest.sleep_duration_s):null;
-  const UP="↑", DN="↓";
-  function setMetric(vId,aId,val,color,dir,upIsGood){
-    const el=document.getElementById(vId);
-    el.classList.remove("sk"); el.textContent=val; el.style.color=color;
-    const ae=document.getElementById(aId);
-    if(dir){ae.textContent=dir;ae.className="metric-arrow "+(upIsGood?(dir===UP?"good":"bad"):(dir===DN?"good":"bad"));}
-    else ae.textContent="";
-  }
-  const hrvDir=(hrv&&hrvP&&!isNaN(hrv)&&!isNaN(hrvP))?(hrv>=hrvP?UP:DN):null;
-  const rhrDir=(rhr&&rhrP)?(rhr>rhrP?UP:DN):null;
-  const slpDir=(slp&&slpP)?(slp>=slpP?UP:DN):null;
-  setMetric("hrv-val","hrv-arrow",hrv!==null&&!isNaN(hrv)?hrv.toFixed(1):"—",(!hrvDir||hrvDir===UP)?"#00D4C8":"#FF5A6E",hrvDir,true);
-  setMetric("rhr-val","rhr-arrow",rhr!==null?String(rhr):"—","#FF5A6E",rhrDir,false);
+  const slpDir=(slp&&slpP)?(slp>=slpP?'↑':'↓'):null;
+  const slpEl=document.getElementById('sleep-val');
+  slpEl.classList.remove('sk');
   const slpHM=slp?hm(slp):null;
-  setMetric("sleep-val","sleep-arrow",slpHM?`${slpHM.h}h${String(slpHM.m).padStart(2,"00")}`:"—",(!slpDir||slpDir===UP)?"#7B9EFF":"#FF5A6E",slpDir,true);
+  slpEl.textContent=slpHM?`${slpHM.h}h${String(slpHM.m).padStart(2,'0')}`:'-';
+  slpEl.style.color=(!slpDir||slpDir==='↑')?'#7B9EFF':'#FF5A6E';
+  const slpA=document.getElementById('sleep-arrow');
+  if(slpDir){slpA.textContent=slpDir;slpA.className='metric-arrow '+(slpDir==='↑'?'good':'bad');}
+  else slpA.textContent='';
+  // HRV — apply current mode
+  const hrvEl=document.getElementById('hrv-val');
+  hrvEl.classList.remove('sk');
+  applyHrvMode();
+  // Date badge
   document.getElementById("date-badge").textContent =
     new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}).toUpperCase();
+  // Sync row
   let syncTime=null;
   rows.forEach(r=>{if(r.updated_at&&(!syncTime||r.updated_at>syncTime))syncTime=r.updated_at;});
   if(syncTime){
@@ -556,7 +626,12 @@ function wDrawChart(rows) {
   const pT=10,pB=28,pL=32,pR=10,iW=W-pL-pR,iH=H-pT-pB;
   const sleepVals=rows.map(r=>r.sleep_duration_s?+r.sleep_duration_s:null);
   const rhrVals=rows.map(r=>r.resting_hr?+r.resting_hr:null);
-  const hrvVals=rows.map(r=>r.hrv_last_night?+r.hrv_last_night:null);
+  // Use the active HRV mode to decide which column to plot
+  const isAvg = (hrvMode === 'weekly_avg');
+  const hrvVals=rows.map(r=>{
+    const v = isAvg ? r.hrv_weekly_avg : r.hrv_last_night;
+    return v ? +v : null;
+  });
   const vSleep=sleepVals.filter(Boolean),vRhr=rhrVals.filter(Boolean),vHrv=hrvVals.filter(Boolean);
   if(!vSleep.length&&!vRhr.length&&!vHrv.length){skel.style.display="block";return;}
   const sleepMax=(d3.max(vSleep)||1)*1.15;
@@ -620,13 +695,14 @@ function wDrawChart(rows) {
       const[mx]=d3.pointer(event,this);
       const idx=clamp(Math.round(mx/(iW/n)-0.5),0,n-1);
       const r=rows[idx];
-      const hv=r.hrv_last_night?(+r.hrv_last_night).toFixed(1):"—";
+      const hv_ln = r.hrv_last_night ? (+r.hrv_last_night).toFixed(1) : "—";
+      const hv_avg= r.hrv_weekly_avg  ? (+r.hrv_weekly_avg).toFixed(1)  : "—";
       const rv=r.resting_hr||"—";
       const sv=r.sleep_duration_s?hmStr(+r.sleep_duration_s):"—";
       const dl=new Date(r.date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
       tt.style.opacity="1";tt.style.left=(event.clientX+14)+"px";tt.style.top=(event.clientY-14)+"px";
       tt.innerHTML=`<div style="color:#6B7A99;font-size:10px;margin-bottom:3px;font-weight:600">${dl}</div>
-        <div><span style="color:#00D4C8;font-weight:700">HRV</span> ${hv} ms</div>
+        <div><span style="color:#00D4C8;font-weight:700">HRV</span> ${hv_ln} ms <span style="color:#3A4A66;font-size:9.5px">(7D ${hv_avg})</span></div>
         <div><span style="color:#FF5A6E;font-weight:700">RHR</span> ${rv} bpm</div>
         <div><span style="color:#7B9EFF;font-weight:700">Sleep</span> ${sv}</div>`;
     }).on("mouseleave",()=>tt.style.opacity="0");
