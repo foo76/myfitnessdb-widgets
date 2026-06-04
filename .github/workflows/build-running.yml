@@ -1,0 +1,19 @@
+name: Build Running.html
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Running.html
+        run: python3 .github/workflows/gen_running.py
+      - name: Commit
+        run: |
+          git config user.email 'action@github.com'
+          git config user.name 'GitHub Action'
+          git add Running.html
+          git diff --staged --quiet || git commit -m 'feat: add Running.html with Volume heatmap tab'
+          git push
