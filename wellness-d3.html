@@ -94,7 +94,7 @@ async function fetchVolumeData(sinceDateStr) {
   const rows = data
     .map(row => ({
       date: row.start_time_utc ? row.start_time_utc.slice(0, 10) : null,
-      name: row.activity_name || row.strava_activity_name || 'Run',
+      name: row.strava_activity_name || row.activity_name || 'Run',
       km:   row.distance_m    ? +(row.distance_m / 1000).toFixed(2) : 0
     }))
     .filter(r => r.date && r.km > 0.1);
