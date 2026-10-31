@@ -75,7 +75,7 @@ async function fetchVolumeData(sinceDateStr) {
 
   let res;
   try {
-    res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+    res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token } });
   } catch (networkErr) {
     throw new Error(`Network error fetching activities: ${networkErr.message}`);
   }
@@ -316,7 +316,7 @@ async function fetchYoYData() {
               + '&activity_type=in.(' + types + ')&distance_m=gt.0&order=start_time_utc.asc';
 
   /* Fetch two pages (API caps at 1000 rows per request) */
-  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token };
   const [r1, r2] = await Promise.all([
     fetch(base + '&offset=0&limit=1000',    { headers }),
     fetch(base + '&offset=1000&limit=1000', { headers })
@@ -900,6 +900,8 @@ body{
 .yoy-toggle-all:hover{border-color:var(--teal);color:var(--teal);}
 .yoy-skel{height:220px;border-radius:12px;background:linear-gradient(90deg,var(--card) 25%,var(--border) 50%,var(--card) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script src="./auth.js"></script>
 </head>
 <body>
 
@@ -1172,7 +1174,7 @@ body{
 
 <script>
 const SB_URL = "https://krgbagjignvbnrgybdos.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
+const SB_KEY = "sb_publishable_qNga415U3UwHSNF1DF5RiQ_5MzhIFFq";
 
 let allRows = [];
 let wActiveDay = 7;
@@ -1321,7 +1323,7 @@ async function fetchData() {
                'sleep_duration_s,deep_sleep_s,light_sleep_s,rem_sleep_s,awake_s,stress_avg,updated_at';
   const res = await fetch(
     `${SB_URL}/rest/v1/wellness_daily?select=${cols}&date=gte.${since}&order=date.asc`,
-    { headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`} }
+    { headers:{"apikey":SB_KEY,"Authorization":"Bearer " + (await window.MyFitnessAuth.requireSession()).access_token} }
   );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -1706,3 +1708,4 @@ function renderReadiness(rows){
 </script>
 </body>
 </html>
+
